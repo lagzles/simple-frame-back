@@ -1,0 +1,341 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String        @map("password_hash")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  sessions     AuthSession[]
+  projects     Project[]
+  buildings    Building[]
+  analysisJobs AnalysisJob[]
+
+  @@map("users")
+}
+
+model AuthSession {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("auth_sessions")
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  userId      String        @map("user_id")
+  name        String
+  clientName  String?       @map("client_name")
+  description String?
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  buildings   Building[]
+  analysisJobs AnalysisJob[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
+model Building {
+  id               String        @id @default(uuid())
+  userId           String        @map("user_id")
+  projectId        String?       @map("project_id")
+  name             String
+  frameSpacing     Float         @map("frame_spacing")
+  frameCount       Int           @map("frame_count")
+  freeHeight       Float         @map("free_height")
+  roofType         RoofType      @map("roof_type")
+  roofSlopePercent Float         @map("roof_slope_percent")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project          Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  modulations      Modulation[]
+  analysisJobs     AnalysisJob[]
+
+  @@index([userId])
+  @@index([projectId])
+  @@map("buildings")
+}
+
+model Modulation {
+  id           String   @id @default(uuid())
+  buildingId   String   @map("building_id")
+  name         String
+  orderIndex   Int      @map("order_index")
+  repeatCount  Int      @map("repeat_count")
+  frameSpacing Float    @map("frame_spacing")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  building     Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  frames       Frame[]
+
+  @@index([buildingId])
+  @@map("modulations")
+}
+
+model Frame {
+  id               String        @id @default(uuid())
+  modulationId     String        @map("modulation_id")
+  name             String
+  spanListJson     Json          @map("span_list_json")
+  freeHeight       Float         @map("free_height")
+  ridgeX           Float?        @map("ridge_x")
+  roofSlopePercent Float         @map("roof_slope_percent")
+  influenceWidth   Float         @map("influence_width")
+  minimumWebHeight Float?        @map("minimum_web_height")
+  hasSteelColumns  Boolean       @map("has_steel_columns")
+  roofType         RoofType      @map("roof_type")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  modulation       Modulation    @relation(fields: [modulationId], references: [id], onDelete: Cascade)
+  nodes            FrameNode[]
+  members          Member[]
+  loadCases        LoadCase[]
+  analysisJobs     AnalysisJob[]
+
+  @@index([modulationId])
+  @@map("frames")
+}
+
+model FrameNode {
+  id          String      @id @default(uuid())
+  frameId     String      @map("frame_id")
+  nodeKey     String      @map("node_key")
+  x           Float
+  y           Float
+  gx          Int?
+  gy          Int?
+  gz          Int?
+  supportType SupportType @default(none) @map("support_type")
+  frame       Frame       @relation(fields: [frameId], references: [id], onDelete: Cascade)
+  startMembers Member[]   @relation("MemberStartNode")
+  endMembers   Member[]   @relation("MemberEndNode")
+
+  @@unique([frameId, nodeKey])
+  @@index([frameId])
+  @@map("nodes")
+}
+
+model Member {
+  id             String     @id @default(uuid())
+  frameId        String     @map("frame_id")
+  memberKey      String     @map("member_key")
+  startNodeId    String     @map("start_node_id")
+  endNodeId      String     @map("end_node_id")
+  memberType     MemberType @map("member_type")
+  kx             Float?
+  ky             Float?
+  startProfileId String?    @map("start_profile_id")
+  endProfileId   String?    @map("end_profile_id")
+  length         Float
+  createdAt      DateTime   @default(now()) @map("created_at")
+  frame          Frame      @relation(fields: [frameId], references: [id], onDelete: Cascade)
+  startNode      FrameNode  @relation("MemberStartNode", fields: [startNodeId], references: [id])
+  endNode        FrameNode  @relation("MemberEndNode", fields: [endNodeId], references: [id])
+  startProfile   Profile?   @relation("StartProfile", fields: [startProfileId], references: [id])
+  endProfile     Profile?   @relation("EndProfile", fields: [endProfileId], references: [id])
+
+  @@unique([frameId, memberKey])
+  @@index([frameId])
+  @@map("members")
+}
+
+model Profile {
+  id              String      @id @default(uuid())
+  name            String
+  profileType     ProfileType @map("profile_type")
+  steelGrade      String?     @map("steel_grade")
+  fy              Float
+  fu              Float?
+  area            Float
+  ix              Float?
+  iy              Float?
+  rx              Float?
+  ry              Float?
+  wx              Float?
+  wy              Float?
+  zx              Float?
+  zy              Float?
+  it              Float?
+  j               Float?
+  cw              Float?
+  weightPerLength Float?      @map("weight_per_length")
+  rawDimensionsJson Json?     @map("raw_dimensions_json")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  startMembers    Member[]    @relation("StartProfile")
+  endMembers      Member[]    @relation("EndProfile")
+
+  @@map("profiles")
+}
+
+model LoadCase {
+  id              String   @id @default(uuid())
+  frameId          String   @map("frame_id")
+  caseKey          String   @map("case_key")
+  caseType         String   @map("case_type")
+  orderIndex       Int      @map("order_index")
+  verticalLeft     Float    @map("vertical_left")
+  verticalRight    Float    @map("vertical_right")
+  horizontalLeft   Float    @map("horizontal_left")
+  horizontalRight  Float    @map("horizontal_right")
+  createdAt        DateTime @default(now()) @map("created_at")
+  frame            Frame    @relation(fields: [frameId], references: [id], onDelete: Cascade)
+
+  @@unique([frameId, caseKey])
+  @@index([frameId])
+  @@map("load_cases")
+}
+
+model AnalysisJob {
+  id             String             @id @default(uuid())
+  userId         String             @map("user_id")
+  projectId      String?            @map("project_id")
+  buildingId     String             @map("building_id")
+  frameId        String?            @map("frame_id")
+  status         AnalysisJobStatus  @default(queued)
+  progress       Int                @default(0)
+  currentStep    String?            @map("current_step")
+  errorCode      String?            @map("error_code")
+  errorMessage   String?            @map("error_message")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  startedAt      DateTime?          @map("started_at")
+  finishedAt     DateTime?          @map("finished_at")
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project        Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  building       Building           @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  frame          Frame?             @relation(fields: [frameId], references: [id], onDelete: SetNull)
+  snapshot       AnalysisSnapshot?
+  result         AnalysisResult?
+  memberResults  MemberResult[]
+  reactions      SupportReaction[]
+  checks         ProfileCheckResult[]
+
+  @@index([userId])
+  @@index([buildingId])
+  @@index([frameId])
+  @@map("analysis_jobs")
+}
+
+model AnalysisSnapshot {
+  id            String      @id @default(uuid())
+  analysisJobId String      @unique @map("analysis_job_id")
+  schemaVersion String      @map("schema_version")
+  inputJson     Json        @map("input_json")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  job           AnalysisJob @relation(fields: [analysisJobId], references: [id], onDelete: Cascade)
+
+  @@map("analysis_snapshots")
+}
+
+model AnalysisResult {
+  id            String      @id @default(uuid())
+  analysisJobId String      @unique @map("analysis_job_id")
+  schemaVersion String      @map("schema_version")
+  summaryJson   Json        @map("summary_json")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  job           AnalysisJob @relation(fields: [analysisJobId], references: [id], onDelete: Cascade)
+
+  @@map("analysis_results")
+}
+
+model MemberResult {
+  id               String      @id @default(uuid())
+  analysisJobId    String      @map("analysis_job_id")
+  memberKey        String      @map("member_key")
+  normalJson       Json?       @map("normal_json")
+  shearStartJson   Json?       @map("shear_start_json")
+  shearEndJson     Json?       @map("shear_end_json")
+  momentStartJson  Json?       @map("moment_start_json")
+  momentEndJson    Json?       @map("moment_end_json")
+  displacementJson Json?       @map("displacement_json")
+  combinationJson  Json?       @map("combination_json")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  job              AnalysisJob @relation(fields: [analysisJobId], references: [id], onDelete: Cascade)
+
+  @@index([analysisJobId])
+  @@map("member_results")
+}
+
+model SupportReaction {
+  id            String      @id @default(uuid())
+  analysisJobId String      @map("analysis_job_id")
+  nodeKey       String      @map("node_key")
+  caseKey       String      @map("case_key")
+  rx            Float?
+  ry            Float?
+  mz            Float?
+  job           AnalysisJob @relation(fields: [analysisJobId], references: [id], onDelete: Cascade)
+
+  @@index([analysisJobId])
+  @@map("support_reactions")
+}
+
+model ProfileCheckResult {
+  id                String      @id @default(uuid())
+  analysisJobId     String      @map("analysis_job_id")
+  memberKey         String      @map("member_key")
+  ratioStartElu     Float?      @map("ratio_start_elu")
+  ratioEndElu       Float?      @map("ratio_end_elu")
+  ratioCompression  Float?      @map("ratio_compression")
+  ratioTension      Float?      @map("ratio_tension")
+  ratioMomentStart  Float?      @map("ratio_moment_start")
+  ratioMomentEnd    Float?      @map("ratio_moment_end")
+  ratioShearStart   Float?      @map("ratio_shear_start")
+  ratioShearEnd     Float?      @map("ratio_shear_end")
+  ratioEls          Float?      @map("ratio_els")
+  isApproved        Boolean?    @map("is_approved")
+  detailsJson       Json?       @map("details_json")
+  job               AnalysisJob @relation(fields: [analysisJobId], references: [id], onDelete: Cascade)
+
+  @@index([analysisJobId])
+  @@map("profile_check_results")
+}
+
+enum RoofType {
+  single_slope
+  double_slope
+}
+
+enum SupportType {
+  none
+  fixed
+  pinned
+  roller
+  simple
+}
+
+enum MemberType {
+  beam
+  column
+  external_column
+}
+
+enum ProfileType {
+  welded
+  cold_formed
+}
+
+enum AnalysisJobStatus {
+  queued
+  running
+  completed
+  failed
+  cancelled
+}
