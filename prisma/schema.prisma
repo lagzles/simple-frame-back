@@ -56,10 +56,6 @@ model Building {
   userId           String        @map("user_id")
   projectId        String?       @map("project_id")
   name             String
-  frameSpacing     Float         @map("frame_spacing")
-  frameCount       Int           @map("frame_count")
-  freeHeight       Float         @map("free_height")
-  roofType         RoofType      @map("roof_type")
   roofSlopePercent Float         @map("roof_slope_percent")
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")

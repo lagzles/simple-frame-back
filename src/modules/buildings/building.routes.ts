@@ -13,6 +13,7 @@ buildingRouter.get(
   "/",
   asyncHandler(async (req, res) => {
     const buildings = await buildingService.listBuildings(req.user!.id);
+    console.log(buildings);
     res.json({ buildings: buildings.map(presentBuilding) });
   }),
 );

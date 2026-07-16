@@ -4,10 +4,19 @@ import { notFound } from "../../lib/api-error.js";
 import type { CreateBuildingInput } from "./building.schemas.js";
 
 export async function listBuildings(userId: string): Promise<Building[]> {
-  return prisma.building.findMany({
-    where: { userId },
-    orderBy: { updatedAt: "desc" },
-  });
+  try{
+    const buildings = await prisma.building.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        modulations: true,
+      },
+    });
+    return buildings;
+  }catch(error){
+    console.error("Error listing buildings", error);
+    throw new Error("Error listing buildings");
+  }
 }
 
 export async function createBuilding(userId: string, input: CreateBuildingInput): Promise<Building> {
@@ -30,10 +39,6 @@ export async function createBuilding(userId: string, input: CreateBuildingInput)
       userId,
       projectId: input.projectId,
       name: input.name,
-      frameSpacing: input.frameSpacing,
-      frameCount: input.frameCount,
-      freeHeight: input.freeHeight,
-      roofType: input.roofType,
       roofSlopePercent: input.roofSlopePercent,
     },
   });
